@@ -36,9 +36,63 @@ def ateliers(machines: dict[str, dict]) -> set[str]:
     return {fiche["atelier"] for fiche in machines.values()}
 # --- Étape 3 : valider une ligne (exceptions, tuples) -------------------------------------------
 def lire_nombre(texte: str, champ: str, numero: int) -> float:
-    """Convertit "52,3" en 52.3 ; lève ReleveInvalide si la valeur est vide ou non numérique."""
-    raise NotImplementedError("à compléter")
+    """Convertit une valeur textuelle en nombre réel valide."""
+
+    texte = texte.strip()
+
+    if not texte:
+        raise ReleveInvalide("valeur manquante", numero, champ)
+
+    try:
+        valeur = float(texte.replace(",", "."))
+    except ValueError:
+        raise ReleveInvalide(
+            f"non numérique : '{texte}'", numero, champ
+        )
+
+    if not math.isfinite(valeur):
+        raise ReleveInvalide("non finie", numero, champ)
+
+    return valeur
 def parser_releve(brut: dict[str, str], numero: int, machines: dict[str, dict]) -> Releve:
+    """Transforme une ligne brute du CSV en relevé typé."""
+
+    machine = (brut.get("machine") or "").strip().upper()
+
+    if not machine:
+        raise ReleveInvalide("valeur manquante", numero, "machine")
+
+    if machine not in machines:
+        raise ReleveInvalide(
+            f"machine inconnue : '{machine}'", numero, "machine"
+        )
+
+    texte_date = (brut.get("horodatage") or "").strip()
+
+    if not texte_date:
+        raise ReleveInvalide("valeur manquante", numero, "horodatage")
+
+    try:
+        horodatage = datetime.fromisoformat(texte_date)
+    except ValueError:
+        raise ReleveInvalide(
+            f"date invalide : '{texte_date}'", numero, "horodatage"
+        )
+
+    temperature = lire_nombre(
+        brut.get("temperature") or "", "temperature", numero
+    )
+
+    vibration = lire_nombre(
+        brut.get("vibration") or "", "vibration", numero
+    )
+
+    if vibration < 0:
+        raise ReleveInvalide(
+            "valeur négative", numero, "vibration"
+        )
+
+    return (machine, horodatage, temperature, vibration)
     """Transforme une ligne brute du CSV (dictionnaire de textes) en relevé typé.
 
     Lève ReleveInvalide (avec le numéro de ligne et le champ fautif) au premier problème.
