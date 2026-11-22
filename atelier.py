@@ -3,6 +3,7 @@ import csv
 import json
 import math
 import re
+
 from datetime import datetime
 from pathlib import Path
 
@@ -250,13 +251,99 @@ def ecrire_rapport(rapport: dict, chemin: Path) -> None:
     with open(chemin, "w", encoding="utf-8") as f:
         json.dump(rapport, f, ensure_ascii=False, indent=2)
 # --- Étape 8 (à la maison) : le journal des événements (expressions régulières) ------------------
-MOTIF_EVENEMENT = re.compile(r"à compléter")   # étape 8
-def lire_evenements(chemin: Path):
-    """Générateur : un dictionnaire par ligne valide du journal, les lignes mal formées sont sautées.
+MOTIF_EVENEMENT = re.compile(
+    r"(?P<date>\d{4}-\d{2}-\d{2}) "
+    r"(?P<heure>\d{2}:\d{2}:\d{2}) "
+    r"\[(?P<machine>M-\d{2})\] "
+    r"(?P<type>[A-Z]+) "
+    r"code=(?P<code>[A-Z]\d{2})"
+    r"(?: duree=(?P<duree>\d+))?"
+)
 
-    Clés : machine, type, code, heure, duree (entier en minutes, ou None si absente).
-    """
-    raise NotImplementedError("à compléter")
+
+def lire_evenements(chemin: Path):
+    """Générateur des événements valides du journal."""
+
+    with open(chemin, encoding="utf-8") as f:
+        for ligne in f:
+            correspondance = MOTIF_EVENEMENT.fullmatch(ligne.strip())
+
+            if correspondance is None:
+                continue
+
+            donnees = correspondance.groupdict()
+
+            yield {
+                "machine": donnees["machine"],
+                "type": donnees["type"],
+                "code": donnees["code"],
+                "heure": donnees["heure"],
+                "duree": (
+                    int(donnees["duree"])
+                    if donnees["duree"] is not None
+                    else None
+                )
+            }
+
+
 def temps_arret(evenements) -> dict[str, int]:
-    """Durée totale des ARRET par machine, en minutes."""
-    raise NotImplementedError("à compléter")
+    """Calcule la durée totale des arrêts par machine."""
+
+    totaux = {}
+
+    for evenement in evenements:
+        if evenement["type"] == "ARRET":
+            machine = evenement["machine"]
+            duree = evenement.get("duree") or 0
+
+            totaux[machine] = totaux.get(machine, 0) + duree
+
+    return totaux
+
+MOTIF_EVENEMENT = re.compile(
+    r"(?P<date>\d{4}-\d{2}-\d{2}) "
+    r"(?P<heure>\d{2}:\d{2}:\d{2}) "
+    r"\[(?P<machine>M-\d{2})\] "
+    r"(?P<type>[A-Z]+) "
+    r"code=(?P<code>[A-Z]\d{2})"
+    r"(?: duree=(?P<duree>\d+))?"
+)
+
+
+def lire_evenements(chemin: Path):
+    """Lit les événements valides du journal."""
+    with open(chemin, encoding="utf-8") as f:
+        for ligne in f:
+            correspondance = MOTIF_EVENEMENT.fullmatch(ligne.strip())
+
+            if correspondance is None:
+                continue
+
+            donnees = correspondance.groupdict()
+
+            yield {
+                "machine": donnees["machine"],
+                "type": donnees["type"],
+                "code": donnees["code"],
+                "heure": donnees["heure"],
+                "duree": int(donnees["duree"])
+                if donnees["duree"] is not None
+                else None
+            }
+
+
+
+def temps_arret(evenements) -> dict[str, int]:
+    """Calcule la durée totale des arrêts par machine."""
+    totaux = {}
+
+    for evenement in evenements:
+        if evenement["type"] == "ARRET":
+            machine = evenement["machine"]
+            duree = evenement.get("duree")
+
+            if duree is not None:
+                totaux[machine] = totaux.get(machine, 0) + duree
+
+    return totaux
+

@@ -8,6 +8,8 @@ from atelier import (
     ecrire_rapport,
     ecrire_rejets,
     lire_releves,
+    lire_evenements,
+    temps_arret,
     classement,
     alertes,
     machines_silencieuses,
@@ -27,6 +29,9 @@ def main() -> int:
         releves, erreurs = lire_releves(
             DONNEES / "releves.csv", machines
         )
+        evenements = list(
+            lire_evenements(DONNEES / "evenements.log")
+       )
 
     except (AtelierError, FileNotFoundError) as err:
         print(f"Erreur : {err}")
@@ -37,6 +42,9 @@ def main() -> int:
     ecrire_rejets(erreurs, SORTIES / "rejets.csv")
 
     rapport = construire_rapport(releves, erreurs, machines)
+
+    rapport["temps_arret"] = temps_arret(evenements)
+
     ecrire_rapport(rapport, SORTIES / "rapport.json")
 
     classement_machines = [
