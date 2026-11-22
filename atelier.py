@@ -100,31 +100,92 @@ def parser_releve(brut: dict[str, str], numero: int, machines: dict[str, dict]) 
     raise NotImplementedError("à compléter")
 # --- Étape 4 : lire le fichier (CSV, générateur, collecte des erreurs) ---------------------------
 def lignes_csv(chemin: Path):
-    """Générateur : produit (numero, ligne_brute) pour chaque ligne de données du CSV.
+    """Générateur de lignes CSV avec numérotation."""
 
-    Le numéro est celui de la ligne dans le fichier (l'en-tête est la ligne 1).
-    Lève FichierInvalide si une colonne attendue manque.
-    """
-    raise NotImplementedError("à compléter")
+    with open(chemin, encoding="utf-8-sig", newline="") as f:
+        lecteur = csv.DictReader(f, delimiter=";")
+
+        manquantes = [col for col in COLONNES if col not in (lecteur.fieldnames or [])]
+
+        if manquantes:
+            raise FichierInvalide(
+                f"colonnes manquantes : {', '.join(manquantes)}"
+            )
+
+        for numero, brut in enumerate(lecteur, start=2):
+            yield numero, brut
 def lire_releves(chemin: Path, machines: dict[str, dict]) -> tuple[list[Releve], list[ReleveInvalide]]:
-    """Lit tout le fichier et renvoie (releves_valides, erreurs) sans s'arrêter sur une ligne invalide."""
-    raise NotImplementedError("à compléter")
+    """Lit les relevés et collecte les lignes invalides."""
+
+    releves = []
+    erreurs = []
+
+    for numero, brut in lignes_csv(chemin):
+        try:
+            releve = parser_releve(brut, numero, machines)
+            releves.append(releve)
+        except ReleveInvalide as err:
+            erreurs.append(err)
+
+    return releves, erreurs
 def ecrire_rejets(erreurs: list[ReleveInvalide], chemin: Path) -> None:
-    """Écrit les lignes rejetées dans un CSV ligne;champ;message, lisible par Excel."""
-    raise NotImplementedError("à compléter")
+    """Écrit les lignes rejetées dans un CSV."""
+
+    with open(chemin, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f, delimiter=";")
+
+        writer.writerow(["ligne", "champ", "message"])
+
+        for err in erreurs:
+            writer.writerow([err.ligne, err.champ, err.message])
 # --- Étape 5 : analyser (dictionnaires, compréhensions) ------------------------------------------
 def par_machine(releves: list[Releve]) -> dict[str, list[Releve]]:
-    """Regroupe les relevés par machine : {machine: [relevés dans l'ordre du fichier]}."""
-    raise NotImplementedError("à compléter")
+    """Regroupe les relevés par machine."""
+
+    groupes = {}
+
+    for releve in releves:
+        machine = releve[0]
+        groupes.setdefault(machine, []).append(releve)
+
+    return groupes
 def moyennes(releves: list[Releve]) -> dict[str, tuple[float, float]]:
-    """{machine: (température moyenne arrondie à 0,1 ; vibration moyenne arrondie à 0,01)}."""
-    raise NotImplementedError("à compléter")
+    """Calcule les moyennes de température et de vibration."""
+
+    return {
+        machine: (
+            round(sum(r[2] for r in liste) / len(liste), 1),
+            round(sum(r[3] for r in liste) / len(liste), 2)
+        )
+        for machine, liste in par_machine(releves).items()
+    }
 def alertes(releves: list[Releve], machines: dict[str, dict]) -> list[tuple[str, datetime, str]]:
-    """Liste des dépassements de seuil (machine, horodatage, motif), triée par horodatage puis machine."""
-    raise NotImplementedError("à compléter")
+    """Détecte les dépassements de seuil."""
+
+    alertes_temperature = [
+        (machine, horodatage,
+         f"température {temperature} > {machines[machine]['temp_max']}")
+        for machine, horodatage, temperature, vibration in releves
+        if temperature > machines[machine]["temp_max"]
+    ]
+
+    alertes_vibration = [
+        (machine, horodatage,
+         f"vibration {vibration} > {machines[machine]['vib_max']}")
+        for machine, horodatage, temperature, vibration in releves
+        if vibration > machines[machine]["vib_max"]
+    ]
+
+    return sorted(
+        alertes_temperature + alertes_vibration,
+        key=lambda a: (a[1], a[0])
+    )
 def machines_silencieuses(releves: list[Releve], machines: dict[str, dict]) -> set[str]:
-    """Les machines du référentiel qui n'ont envoyé aucun relevé valide (capteur en panne ?)."""
-    raise NotImplementedError("à compléter")
+    """Retourne les machines sans relevé valide."""
+
+    machines_actives = {releve[0] for releve in releves}
+
+    return set(machines) - machines_actives
 # --- Étape 6 : trier ---------------------------------------------------------------------------
 def classement(releves: list[Releve], machines: dict[str, dict]) -> list[tuple[str, int]]:
     """[(machine, nombre d'alertes)] pour TOUTES les machines, la plus alertée d'abord, puis par identifiant."""
