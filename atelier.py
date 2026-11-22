@@ -188,18 +188,67 @@ def machines_silencieuses(releves: list[Releve], machines: dict[str, dict]) -> s
     return set(machines) - machines_actives
 # --- Étape 6 : trier ---------------------------------------------------------------------------
 def classement(releves: list[Releve], machines: dict[str, dict]) -> list[tuple[str, int]]:
-    """[(machine, nombre d'alertes)] pour TOUTES les machines, la plus alertée d'abord, puis par identifiant."""
-    raise NotImplementedError("à compléter")
+    """Classe toutes les machines par nombre d'alertes décroissant."""
+
+    compteurs = {m: 0 for m in machines}
+
+    for machine, horodatage, motif in alertes(releves, machines):
+        compteurs[machine] += 1
+
+    return sorted(
+        compteurs.items(),
+        key=lambda item: (-item[1], item[0])
+    )
 def top_vibrations(releves: list[Releve], n: int = 3) -> list[Releve]:
-    """Les n relevés de plus forte vibration, du plus fort au plus faible."""
-    raise NotImplementedError("à compléter")
+    """Retourne les n relevés avec les vibrations les plus élevées."""
+
+    return sorted(releves, key=lambda r: r[3], reverse=True)[:n]
 # --- Étape 7 : le rapport JSON ------------------------------------------------------------------
 def construire_rapport(releves: list[Releve], erreurs: list[ReleveInvalide], machines: dict[str, dict]) -> dict:
-    """Le rapport sous forme d'un dictionnaire prêt pour json.dump (pas de datetime, pas d'ensemble)."""
-    raise NotImplementedError("à compléter")
+    """Construit le rapport final sous forme de dictionnaire JSON."""
+
+    moyennes_calculees = moyennes(releves)
+
+    moyennes_json = {
+        machine: {
+            "temperature": valeurs[0],
+            "vibration": valeurs[1]
+        }
+        for machine, valeurs in sorted(moyennes_calculees.items())
+    }
+
+    alertes_json = [
+        {
+            "machine": machine,
+            "heure": horodatage.strftime("%H:%M"),
+            "motif": motif
+        }
+        for machine, horodatage, motif in alertes(releves, machines)
+    ]
+
+    classement_json = [
+        machine
+        for machine, nombre in classement(releves, machines)
+        if nombre > 0
+    ]
+
+    return {
+        "releves_valides": len(releves),
+        "lignes_rejetees": len(erreurs),
+        "moyennes": moyennes_json,
+        "alertes": alertes_json,
+        "classement": classement_json,
+        "machines_silencieuses": sorted(
+            machines_silencieuses(releves, machines)
+        )
+    }
+
+
 def ecrire_rapport(rapport: dict, chemin: Path) -> None:
-    """Écrit le rapport en JSON indenté, accents conservés."""
-    raise NotImplementedError("à compléter")
+    """Écrit le rapport au format JSON."""
+
+    with open(chemin, "w", encoding="utf-8") as f:
+        json.dump(rapport, f, ensure_ascii=False, indent=2)
 # --- Étape 8 (à la maison) : le journal des événements (expressions régulières) ------------------
 MOTIF_EVENEMENT = re.compile(r"à compléter")   # étape 8
 def lire_evenements(chemin: Path):
